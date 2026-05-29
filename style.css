@@ -1,0 +1,32 @@
+/* Αποφυγή highlight κατά το πάτημα σε κινητά (PWA native feel) */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom Scrollbar για Webkit browsers */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #CBD5E1; /* Tailwind slate-300 */
+    border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background-color: #475569; /* Tailwind slate-600 */
+}
+
+/* Ομαλό transition για το Dark Mode */
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Κρύβουμε στοιχεία πριν φορτώσει το Alpine (fallback αν αποτύχει inline style) */
+[x-cloak] {
+    display: none !important;
+}

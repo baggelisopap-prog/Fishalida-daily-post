@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fishαλίδα Manager</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#DC2626" id="theme-color-meta">
+    <link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
+    <link rel="apple-touch-icon" href="icons/icon-192.svg">
+
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            red: '#DC2626', // Primary actions
+                            blue: '#1E40AF', // Secondary, headers
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <script src="config.js"></script>
+    <script src="app.js" defer></script>
+
+    <style>
+        /* Αποφυγή εμφάνισης raw template tags πριν φορτώσει το Alpine */
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="fishalidaApp()" x-init="initApp()" 
+      class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-300"
+      :class="{ 'dark': isDarkMode }">
+
+    <div class="fixed top-4 right-4 z-50 flex flex-col gap-2">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-show="toast.visible"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-x-8"
+                 x-transition:enter-end="opacity-100 translate-x-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 class="px-4 py-3 rounded-lg shadow-lg text-white font-medium flex items-center gap-2"
+                 :class="{
+                     'bg-green-600': toast.type === 'success',
+                     'bg-brand-red': toast.type === 'error',
+                     'bg-brand-blue': toast.type === 'info'
+                 }">
+                <span x-text="toast.message"></span>
+            </div>
+        </template>
+    </div>
+
+    <div x-show="isLoading" x-cloak class="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex items-center justify-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-4 border-brand-red border-t-transparent"></div>
+    </div>
+
+    <div x-show="!isLoading && !session" x-cloak class="flex-1 flex flex-col justify-center items-center p-4">
+        <div class="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 relative">
+            
+            <button @click="toggleTheme()" class="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
+                <span x-show="!isDarkMode">🌙</span>
+                <span x-show="isDarkMode">☀️</span>
+            </button>
+
+            <div class="w-20 h-20 mx-auto bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-6">
+                <img src="icons/icon-192.svg" alt="Fishαλίδα Logo" class="w-12 h-12">
+            </div>
+            
+            <h1 class="text-2xl font-bold text-center mb-6 text-brand-blue dark:text-blue-400">Fishαλίδα Manager</h1>
+            
+            <form @submit.prevent="handleLogin" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Email</label>
+                    <input type="email" x-model="loginEmail" required
+                           class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none transition-all h-12"
+                           placeholder="user@fishalida.gr">
+                </div>
+                <button type="submit" :disabled="isAuthLoading"
+                        class="w-full h-12 bg-brand-red hover:bg-red-700 text-white font-bold rounded-lg shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                    <span x-show="!isAuthLoading">Είσοδος</span>
+                    <div x-show="isAuthLoading" class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                </button>
+            </form>
+            
+            <div x-show="magicLinkSent" class="mt-4 p-3 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-sm text-center">
+                📧 Έλεγξε το email σου για τον σύνδεσμο εισόδου
+            </div>
+        </div>
+    </div>
+
+    <div x-show="!isLoading && session" x-cloak class="flex-1 flex flex-col h-screen overflow-hidden">
+        
+        <header class="bg-brand-blue text-white shadow-md z-20 shrink-0">
+            <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <img src="icons/icon-192.svg" alt="Logo" class="w-8 h-8 filter brightness-0 invert">
+                    <span class="font-bold text-lg hidden sm:block">Fishαλίδα Manager</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-sm opacity-90 hidden md:block" x-text="session?.user?.email"></span>
+                    
+                    <button @click="toggleTheme()" class="p-2 rounded-full hover:bg-blue-800 transition-colors">
+                        <span x-show="!isDarkMode">🌙</span>
+                        <span x-show="isDarkMode">☀️</span>
+                    </button>
+                    
+                    <button @click="handleLogout" class="p-2 rounded-lg bg-blue-800 hover:bg-blue-900 text-sm font-medium transition-colors">
+                        Έξοδος
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto w-full max-w-5xl mx-auto p-4 pb-24 md:pb-6">
+            
+            <div x-show="currentTab === 'daily'" class="space-y-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Σήμερα</h2>
+                        <p class="text-xl font-bold text-brand-blue dark:text-blue-400" x-text="formattedToday"></p>
+                    </div>
+                </div>
+
+                <template x-for="cat in dailyData" :key="cat.id">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden mb-4"
+                         x-data="{ expanded: true }">
+                        
+                        <button @click="expanded = !expanded" class="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                            <h3 class="font-bold text-lg" x-text="cat.name + ' (' + cat.fish.length + ')'"></h3>
+                            <svg :class="{'rotate-180': expanded}" class="w-6 h-6 transform transition-transform text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        
+                        <div x-show="expanded" x-collapse>
+                            <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                                <template x-for="fish in cat.fish" :key="fish.id">
+                                    <li class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        
+                                        <div class="flex-1 flex flex-col">
+                                            <span class="font-semibold text-lg" x-text="fish.name"></span>
+                                            <span class="text-xs mt-1 min-h-[1rem]" 
+                                                  :class="{
+                                                      'text-yellow-600 dark:text-yellow-400': fish.saveStatus === 'saving',
+                                                      'text-green-600 dark:text-green-400': fish.saveStatus === 'saved',
+                                                      'text-brand-red': fish.saveStatus === 'error'
+                                                  }"
+                                                  x-text="fish.saveStatus === 'saving' ? '⏳ Αποθήκευση...' : (fish.saveStatus === 'saved' ? '✅ Αποθηκεύτηκε' : (fish.saveStatus === 'error' ? '❌ Σφάλμα' : ''))">
+                                            </span>
+                                        </div>
+                                        
+                                        <div class="flex items-center gap-4 self-end sm:self-auto">
+                                            <div class="relative w-28">
+                                                <input type="number" step="0.10" min="0" placeholder="0.00"
+                                                       x-model="fish.price"
+                                                       @input.debounce.500ms="updateDailyStatus(fish)"
+                                                       class="w-full pl-3 pr-8 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-brand-blue outline-none text-right font-medium">
+                                                <span class="absolute right-3 top-2.5 text-gray-500 font-medium">€</span>
+                                            </div>
+                                            
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" 
+                                                       x-model="fish.available"
+                                                       @change="updateDailyStatus(fish)">
+                                                <div class="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-brand-red"></div>
+                                            </label>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+                    <button @click="openModal('previewModal')" class="h-14 bg-white dark:bg-gray-800 border-2 border-brand-blue text-brand-blue dark:text-blue-400 font-bold rounded-xl shadow-sm flex items-center justify-center gap-2 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors">
+                        <span class="text-xl">👁️</span> Δες Preview
+                    </button>
+                    <button disabled class="h-14 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-bold rounded-xl flex items-center justify-center gap-2 cursor-not-allowed">
+                        <span class="text-xl">📘</span> Δημοσίευση στο Facebook
+                    </button>
+                    <div class="sm:col-span-2 text-center text-sm text-gray-500">
+                        * Η δημοσίευση θα είναι διαθέσιμη μετά τη σύνδεση με το n8n.
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'promo'" class="space-y-6">
+                <h2 class="text-2xl font-bold text-brand-blue dark:text-blue-400">Προωθητικά Posts</h2>
+                
+                <button @click="openModal('promoModal')" class="w-full h-16 bg-gradient-to-r from-brand-red to-red-500 hover:from-red-700 hover:to-red-600 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 text-lg">
+                    <span>✨</span> Φτιάξε Promo Post
+                </button>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                    <h3 class="font-bold text-gray-700 dark:text-gray-300 mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">Πρόσφατα Promo Posts</h3>
+                    
+                    <div x-show="promoLogs.length === 0" class="text-center py-8 text-gray-500">
+                        Δεν υπάρχουν πρόσφατα posts.
+                    </div>
+
+                    <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <template x-for="log in promoLogs" :key="log.id">
+                            <li class="py-3">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="text-xs font-semibold text-gray-500" x-text="formatDateStr(log.posted_at)"></span>
+                                    <template x-if="log.facebook_post_id">
+                                        <a :href="'https://facebook.com/' + log.facebook_post_id" target="_blank" class="text-blue-600 hover:underline text-xs flex items-center gap-1">FB Link ↗</a>
+                                    </template>
+                                </div>
+                                <p class="text-sm text-gray-800 dark:text-gray-200 line-clamp-2" x-text="log.content"></p>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'admin'" class="space-y-8">
+                
+                <section>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-brand-blue dark:text-blue-400">Κατηγορίες</h2>
+                        <button @click="openModal('categoryModal')" class="bg-brand-red hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">
+                            ➕ Προσθήκη
+                        </button>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                        <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                            <template x-for="cat in adminCategories" :key="cat.id">
+                                <li class="p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <div class="flex items-center gap-3">
+                                        <span class="cursor-grab text-gray-400 hover:text-gray-600 p-2">↕️</span>
+                                        <span class="font-medium" x-text="cat.name"></span>
+                                        <span class="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-full" x-text="cat.fish_count + ' ψάρια'"></span>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button @click="editCategory(cat)" class="p-2 text-blue-600 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100">✏️</button>
+                                        <button @click="confirmDelete('category', cat)" class="p-2 text-red-600 bg-red-50 dark:bg-red-900/30 rounded-lg hover:bg-red-100">🗑️</button>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-brand-blue dark:text-blue-400">Ψάρια</h2>
+                        <button @click="openModal('fishModal')" class="bg-brand-red hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">
+                            ➕ Προσθήκη
+                        </button>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                        <template x-for="group in adminFishGrouped" :key="group.categoryId">
+                            <div>
+                                <div class="bg-gray-100 dark:bg-gray-700 px-4 py-2 font-bold text-sm text-gray-600 dark:text-gray-300" x-text="group.categoryName"></div>
+                                <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    <template x-for="fish in group.fishes" :key="fish.id">
+                                        <li class="p-3 flex items-center justify-between pl-6 hover:bg-gray-50 dark:hover:bg-gray-700/50" :class="{'opacity-60': !fish.active}">
+                                            <span class="font-medium" x-text="fish.name"></span>
+                                            <div class="flex gap-2 items-center">
+                                                <button @click="toggleFishActive(fish)" class="text-sm px-2 py-1 rounded border" 
+                                                        :class="fish.active ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-100 border-gray-300 text-gray-500'"
+                                                        x-text="fish.active ? 'Ενεργό' : 'Ανενεργό'"></button>
+                                                <button @click="editFish(fish)" class="p-2 text-blue-600 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100">✏️</button>
+                                                <button @click="confirmDelete('fish', fish)" class="p-2 text-red-600 bg-red-50 dark:bg-red-900/30 rounded-lg hover:bg-red-100">🗑️</button>
+                                            </div>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+            </div>
+            
+        </main>
+
+        <nav class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 md:relative md:border-t-0 md:border-b shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] md:shadow-none z-20 fixed bottom-0 w-full shrink-0">
+            <div class="max-w-5xl mx-auto flex justify-around md:justify-start md:px-4">
+                <button @click="setTab('daily')" 
+                        class="flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 md:py-4 md:px-6 transition-colors border-t-2 md:border-t-0 md:border-b-2"
+                        :class="currentTab === 'daily' ? 'border-brand-red text-brand-red' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'">
+                    <span class="text-xl">🐟</span>
+                    <span class="text-xs md:text-sm font-bold">Καθημερινό</span>
+                </button>
+                <button @click="setTab('promo')" 
+                        class="flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 md:py-4 md:px-6 transition-colors border-t-2 md:border-t-0 md:border-b-2"
+                        :class="currentTab === 'promo' ? 'border-brand-red text-brand-red' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'">
+                    <span class="text-xl">📢</span>
+                    <span class="text-xs md:text-sm font-bold">Διαφημιστικό</span>
+                </button>
+                <button x-show="userRole === 'admin'" @click="setTab('admin')" 
+                        class="flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 md:py-4 md:px-6 transition-colors border-t-2 md:border-t-0 md:border-b-2"
+                        :class="currentTab === 'admin' ? 'border-brand-red text-brand-red' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'">
+                    <span class="text-xl">⚙️</span>
+                    <span class="text-xs md:text-sm font-bold">Διαχείριση</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <div x-show="activeModal !== null" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
+        
+        <div x-show="['previewModal', 'promoModal'].includes(activeModal)" @click.outside="closeModal()" class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full text-center">
+            <div class="text-4xl mb-4">🚧</div>
+            <h3 class="text-xl font-bold mb-2">Σύντομα διαθέσιμο</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Η λειτουργία αυτή θα συνδεθεί με τα αυτοματοποιημένα n8n workflows στη Φάση 2.</p>
+            <button @click="closeModal()" class="w-full h-12 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 font-bold rounded-lg transition-colors">Κλείσιμο</button>
+        </div>
+
+        <div x-show="activeModal === 'categoryModal'" @click.outside="closeModal()" class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 class="text-xl font-bold mb-4" x-text="categoryForm.id ? 'Επεξεργασία Κατηγορίας' : 'Προσθήκη Κατηγορίας'"></h3>
+            <form @submit.prevent="saveCategory" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Όνομα</label>
+                    <input type="text" x-model="categoryForm.name" required class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 outline-none focus:ring-2 focus:ring-brand-blue transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Σειρά Εμφάνισης</label>
+                    <input type="number" x-model="categoryForm.display_order" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 outline-none focus:ring-2 focus:ring-brand-blue transition-all">
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="button" @click="closeModal()" class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Ακύρωση</button>
+                    <button type="submit" class="flex-1 py-2 bg-brand-red text-white rounded-lg font-bold hover:bg-red-700 transition-colors">Αποθήκευση</button>
+                </div>
+            </form>
+        </div>
+
+        <div x-show="activeModal === 'fishModal'" @click.outside="closeModal()" class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 class="text-xl font-bold mb-4" x-text="fishForm.id ? 'Επεξεργασία Ψαριού' : 'Προσθήκη Ψαριού'"></h3>
+            <form @submit.prevent="saveFish" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Όνομα</label>
+                    <input type="text" x-model="fishForm.name" required class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 outline-none focus:ring-2 focus:ring-brand-blue transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Κατηγορία</label>
+                    <select x-model="fishForm.category_id" required class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 outline-none focus:ring-2 focus:ring-brand-blue transition-all">
+                        <option value="">Επίλεξε κατηγορία...</option>
+                        <template x-for="cat in adminCategories" :key="cat.id">
+                            <option :value="cat.id" x-text="cat.name"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Σειρά Εμφάνισης</label>
+                    <input type="number" x-model="fishForm.display_order" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 outline-none focus:ring-2 focus:ring-brand-blue transition-all">
+                </div>
+                <div class="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="fishActiveModal" x-model="fishForm.active" class="w-5 h-5 accent-brand-red rounded focus:ring-brand-red">
+                    <label for="fishActiveModal" class="text-sm font-medium cursor-pointer">Ενεργό</label>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="button" @click="closeModal()" class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Ακύρωση</button>
+                    <button type="submit" class="flex-1 py-2 bg-brand-red text-white rounded-lg font-bold hover:bg-red-700 transition-colors">Αποθήκευση</button>
+                </div>
+            </form>
+        </div>
+
+        <div x-show="activeModal === 'confirmDeleteModal'" @click.outside="closeModal()" class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full text-center">
+            <div class="text-4xl mb-4">⚠️</div>
+            <h3 class="text-xl font-bold mb-2">Επιβεβαίωση Διαγραφής</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6" x-text="confirmDeleteData?.message || 'Είστε σίγουροι; Η ενέργεια είναι μόνιμη.'"></p>
+            <div class="flex gap-3">
+                <button @click="closeModal()" class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Ακύρωση</button>
+                <button @click="executeDelete()" class="flex-1 py-2 bg-brand-red text-white rounded-lg font-bold hover:bg-red-700 transition-colors">Διαγραφή</button>
+            </div>
+        </div>
+
+        <div x-show="activeModal === 'errorModal'" @click.outside="closeModal()" class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full text-center">
+            <div class="text-4xl mb-4 text-red-500">❌</div>
+            <h3 class="text-xl font-bold mb-2 text-brand-red">Σφάλμα</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6" x-text="errorMessage || 'Δεν ήταν δυνατή η ολοκλήρωση της ενέργειας.'"></p>
+            <button @click="closeModal()" class="w-full py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Κατάλαβα</button>
+        </div>
+
+    </div>
+
+</body>
+</html>
