@@ -4,10 +4,13 @@
  */
 
 // Αρχικοποίηση Supabase Client από το config.js
+// Σημείωση: Χρησιμοποιούμε "supabaseClient" αντί για "supabase" για να αποφύγουμε
+// σύγκρουση με το global window.supabase που δηλώνει το Supabase CDN library.
 const supabaseUrl = window.APP_CONFIG.SUPABASE_URL;
 const supabaseKey = window.APP_CONFIG.SUPABASE_ANON_KEY;
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
+// Δήλωση ως global (window.fishalidaApp) ώστε το Alpine.js να μπορεί να τη βρει
 window.fishalidaApp = function() {
     return {
         // ==========================================
