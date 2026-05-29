@@ -6,7 +6,7 @@
 // Αρχικοποίηση Supabase Client από το config.js
 const supabaseUrl = window.APP_CONFIG.SUPABASE_URL;
 const supabaseKey = window.APP_CONFIG.SUPABASE_ANON_KEY;
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 window.fishalidaApp = function() {
     return {
@@ -45,7 +45,7 @@ window.fishalidaApp = function() {
             this.registerServiceWorker();
             
             // Παρακολούθηση αλλαγών στο Authentication State
-            supabase.auth.onAuthStateChange((event, session) => {
+            supabaseClient.auth.onAuthStateChange((event, session) => {
                 this.session = session;
                 this.userRole = session?.user?.app_metadata?.role || null;
                 
@@ -56,7 +56,7 @@ window.fishalidaApp = function() {
             });
             
             // Αρχικός έλεγχος συνεδρίας
-            const { data: { session }, error } = await supabase.auth.getSession();
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error) {
                 console.error("Auth error during init:", error);
             }
@@ -76,7 +76,7 @@ window.fishalidaApp = function() {
             this.isAuthLoading = true;
             this.magicLinkSent = false;
             
-            const { error } = await supabase.auth.signInWithOtp({ 
+            const { error } = await supabaseClient.auth.signInWithOtp({ 
                 email: this.loginEmail,
                 options: {
                     shouldCreateUser: false // Οι χρήστες είναι pre-created από admin
@@ -93,7 +93,7 @@ window.fishalidaApp = function() {
         },
 
         async handleLogout() {
-            const { error } = await supabase.auth.signOut();
+            const { error } = await supabaseClient.auth.signOut();
             if (error) {
                 this.addToast('Σφάλμα κατά την αποσύνδεση', 'error');
             } else {
@@ -151,7 +151,7 @@ window.fishalidaApp = function() {
                 const today = this.todayISO;
                 
                 // 1. Φέρνουμε όλα τα ΕΝΕΡΓΑ ψάρια και τις κατηγορίες τους
-                const { data: fishes, error: fishError } = await supabase
+                const { data: fishes, error: fishError } = await supabaseClient
                     .from('fish')
                     .select(`
                         id, name, display_order, category_id,
@@ -163,7 +163,7 @@ window.fishalidaApp = function() {
                 if (fishError) throw fishError;
 
                 // 2. Φέρνουμε το σημερινό status για αυτά
-                const { data: statuses, error: statusError } = await supabase
+                const { data: statuses, error: statusError } = await supabaseClient
                     .from('daily_status')
                     .select('fish_id, price, available')
                     .eq('date', today);
@@ -217,7 +217,7 @@ window.fishalidaApp = function() {
             try {
                 const today = this.todayISO;
                 
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('daily_status')
                     .upsert({ 
                         fish_id: fish.id, 
@@ -243,7 +243,7 @@ window.fishalidaApp = function() {
         // ==========================================
         async loadPromoLogs() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('post_log')
                     .select('*')
                     .eq('post_type', 'promo')
@@ -264,14 +264,14 @@ window.fishalidaApp = function() {
         async loadAdminData() {
             try {
                 // Fetch Κατηγοριών
-                const { data: cats, error: catError } = await supabase
+                const { data: cats, error: catError } = await supabaseClient
                     .from('categories')
                     .select('id, name, display_order')
                     .order('display_order');
                 if (catError) throw catError;
 
                 // Fetch ΟΛΩΝ των Ψαριών
-                const { data: fishes, error: fishError } = await supabase
+                const { data: fishes, error: fishError } = await supabaseClient
                     .from('fish')
                     .select('id, name, display_order, active, category_id')
                     .order('display_order');
@@ -305,10 +305,10 @@ window.fishalidaApp = function() {
 
                 let error;
                 if (this.categoryForm.id) {
-                    const res = await supabase.from('categories').update(payload).eq('id', this.categoryForm.id);
+                    const res = await supabaseClient.from('categories').update(payload).eq('id', this.categoryForm.id);
                     error = res.error;
                 } else {
-                    const res = await supabase.from('categories').insert([payload]);
+                    const res = await supabaseClient.from('categories').insert([payload]);
                     error = res.error;
                 }
 
@@ -334,10 +334,10 @@ window.fishalidaApp = function() {
 
                 let error;
                 if (this.fishForm.id) {
-                    const res = await supabase.from('fish').update(payload).eq('id', this.fishForm.id);
+                    const res = await supabaseClient.from('fish').update(payload).eq('id', this.fishForm.id);
                     error = res.error;
                 } else {
-                    const res = await supabase.from('fish').insert([payload]);
+                    const res = await supabaseClient.from('fish').insert([payload]);
                     error = res.error;
                 }
 
@@ -355,7 +355,7 @@ window.fishalidaApp = function() {
         async toggleFishActive(fish) {
             try {
                 const newStatus = !fish.active;
-                const { error } = await supabase.from('fish').update({ active: newStatus }).eq('id', fish.id);
+                const { error } = await supabaseClient.from('fish').update({ active: newStatus }).eq('id', fish.id);
                 if (error) throw error;
                 
                 fish.active = newStatus;
@@ -386,7 +386,7 @@ window.fishalidaApp = function() {
                 const { type, id } = this.confirmDeleteData;
                 const table = type === 'category' ? 'categories' : 'fish';
                 
-                const { error } = await supabase.from(table).delete().eq('id', id);
+                const { error } = await supabaseClient.from(table).delete().eq('id', id);
                 if (error) throw error;
 
                 this.addToast("Η διαγραφή ολοκληρώθηκε.", "success");
