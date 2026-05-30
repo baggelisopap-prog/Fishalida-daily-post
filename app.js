@@ -82,7 +82,8 @@ window.fishalidaApp = function() {
             const { error } = await supabaseClient.auth.signInWithOtp({ 
                 email: this.loginEmail,
                 options: {
-                    shouldCreateUser: false // Οι χρήστες είναι pre-created από admin
+                    shouldCreateUser: false, // Οι χρήστες είναι pre-created από admin
+emailRedirectTo: window.location.origin + window.location.pathname
                 }
             });
             
