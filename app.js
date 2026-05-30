@@ -3,34 +3,29 @@
  * Συνδέει το UI (Alpine.js) με το Backend (Supabase)
  */
 
-// Αρχικοποίηση Supabase Client από το config.js
-// Σημείωση: Χρησιμοποιούμε "supabaseClient" αντί για "supabase" για να αποφύγουμε
-// σύγκρουση με το global window.supabase που δηλώνει το Supabase CDN library.
 const supabaseUrl = window.APP_CONFIG.SUPABASE_URL;
 const supabaseKey = window.APP_CONFIG.SUPABASE_ANON_KEY;
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-// Δήλωση ως global (window.fishalidaApp) ώστε το Alpine.js να μπορεί να τη βρει
 window.fishalidaApp = function() {
     return {
         // ==========================================
         // APPLICATION STATE
         // ==========================================
+        splashVisible: true,
         isLoading: true,
         isAuthLoading: false,
         session: null,
-        userRole: null, // 'admin' ή 'staff'
+        userRole: null, 
         loginEmail: '',
         magicLinkSent: false,
-        currentTab: 'daily', // 'daily', 'promo', 'admin'
+        currentTab: 'daily', 
         
-        // Data Collections
         dailyData: [],
         promoLogs: [],
         adminCategories: [],
         adminFishGrouped: [],
         
-        // UI & Forms State
         isDarkMode: localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches),
         toasts: [],
         activeModal: null,
@@ -38,7 +33,7 @@ window.fishalidaApp = function() {
         
         categoryForm: { id: null, name: '', display_order: 1 },
         fishForm: { id: null, name: '', category_id: '', display_order: 1, active: true },
-        confirmDeleteData: null, // { type: 'category'|'fish', id: '...', message: '...' }
+        confirmDeleteData: null, 
 
         // ==========================================
         // INITIALIZATION
@@ -47,7 +42,11 @@ window.fishalidaApp = function() {
             this.setupTheme();
             this.registerServiceWorker();
             
-            // Παρακολούθηση αλλαγών στο Authentication State
+            // Κλείσιμο Splash Screen μετά από 1.5 δευτερόλεπτο
+            setTimeout(() => {
+                this.splashVisible = false;
+            }, 1500);
+
             supabaseClient.auth.onAuthStateChange((event, session) => {
                 this.session = session;
                 this.userRole = session?.user?.app_metadata?.role || null;
@@ -58,7 +57,6 @@ window.fishalidaApp = function() {
                 this.isLoading = false;
             });
             
-            // Αρχικός έλεγχος συνεδρίας
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error) {
                 console.error("Auth error during init:", error);
@@ -73,6 +71,52 @@ window.fishalidaApp = function() {
         },
 
         // ==========================================
+        // SORTABLE JS INITIALIZATION (Drag & Drop)
+        // ==========================================
+        initSortable(el, categoryId) {
+            new Sortable(el, {
+                animation: 150,
+                handle: '.drag-handle',
+                ghostClass: 'opacity-50',
+                onEnd: async (evt) => {
+                    if (evt.oldIndex === evt.newIndex) return;
+                    
+                    // Ανάκτηση της νέας σειράς από το DOM (χρησιμοποιώντας το data-id)
+                    const itemEls = Array.from(el.children);
+                    const newOrderIds = itemEls.map(element => element.getAttribute('data-id'));
+                    
+                    await this.saveNewFishOrder(categoryId, newOrderIds);
+                }
+            });
+        },
+
+        async saveNewFishOrder(categoryId, newOrderIds) {
+            try {
+                const category = this.dailyData.find(c => c.id === categoryId);
+                if (!category) return;
+
+                // Ενημέρωση του memory array βάσει της νέας σειράς
+                category.fish.sort((a, b) => {
+                    return newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id);
+                });
+
+                // Bulk update στο Supabase
+                const promises = category.fish.map((fish, index) => {
+                    fish.display_order = index + 1;
+                    return supabaseClient.from('fish')
+                        .update({ display_order: fish.display_order })
+                        .eq('id', fish.id);
+                });
+
+                await Promise.all(promises);
+                this.addToast("Η σειρά αποθηκεύτηκε", "success");
+            } catch (error) {
+                console.error("Σφάλμα κατά την αλλαγή σειράς:", error);
+                this.addToast("Σφάλμα κατά την αποθήκευση της σειράς", "error");
+            }
+        },
+
+        // ==========================================
         // AUTHENTICATION
         // ==========================================
         async handleLogin() {
@@ -81,10 +125,7 @@ window.fishalidaApp = function() {
             
             const { error } = await supabaseClient.auth.signInWithOtp({ 
                 email: this.loginEmail,
-                options: {
-                    shouldCreateUser: false, // Οι χρήστες είναι pre-created από admin
-emailRedirectTo: window.location.origin + window.location.pathname
-                }
+                options: { shouldCreateUser: false }
             });
             
             this.isAuthLoading = false;
@@ -127,7 +168,6 @@ emailRedirectTo: window.location.origin + window.location.pathname
         // DATE UTILITIES
         // ==========================================
         get todayISO() {
-            // Επιστρέφει YYYY-MM-DD σε τοπική ώρα
             const d = new Date();
             const offset = d.getTimezoneOffset();
             const localDate = new Date(d.getTime() - (offset * 60 * 1000));
@@ -154,7 +194,6 @@ emailRedirectTo: window.location.origin + window.location.pathname
             try {
                 const today = this.todayISO;
                 
-                // 1. Φέρνουμε όλα τα ΕΝΕΡΓΑ ψάρια και τις κατηγορίες τους
                 const { data: fishes, error: fishError } = await supabaseClient
                     .from('fish')
                     .select(`
@@ -166,7 +205,6 @@ emailRedirectTo: window.location.origin + window.location.pathname
 
                 if (fishError) throw fishError;
 
-                // 2. Φέρνουμε το σημερινό status για αυτά
                 const { data: statuses, error: statusError } = await supabaseClient
                     .from('daily_status')
                     .select('fish_id, price, available')
@@ -174,12 +212,10 @@ emailRedirectTo: window.location.origin + window.location.pathname
 
                 if (statusError) throw statusError;
 
-                // 3. Ομαδοποίηση στη μνήμη (εξασφαλίζει ότι βλέπουμε όλα τα ενεργά ψάρια, 
-                // ακόμα κι αν δεν έχουν εγγραφή στο daily_status)
                 const categoryMap = new Map();
                 
                 fishes.forEach(f => {
-                    if (!f.category) return; // Fail-safe
+                    if (!f.category) return;
                     const status = statuses.find(s => s.fish_id === f.id) || { price: null, available: false };
                     
                     const catId = f.category.id;
@@ -198,11 +234,10 @@ emailRedirectTo: window.location.origin + window.location.pathname
                         price: status.price,
                         available: status.available,
                         display_order: f.display_order,
-                        saveStatus: '' // Για visual feedback: 'saving', 'saved', 'error'
+                        saveStatus: '' 
                     });
                 });
 
-                // 4. Ταξινόμηση Categories και Fishes βάσει του display_order
                 const sortedCategories = Array.from(categoryMap.values()).sort((a, b) => a.display_order - b.display_order);
                 sortedCategories.forEach(cat => {
                     cat.fish.sort((a, b) => a.display_order - b.display_order);
@@ -233,7 +268,6 @@ emailRedirectTo: window.location.origin + window.location.pathname
                 if (error) throw error;
                 
                 fish.saveStatus = 'saved';
-                // Καθαρισμός του feedback μετά από 2 δευτερόλεπτα
                 setTimeout(() => { if (fish.saveStatus === 'saved') fish.saveStatus = ''; }, 2000);
             } catch (error) {
                 console.error("Σφάλμα Upsert Daily Status:", error);
@@ -267,27 +301,23 @@ emailRedirectTo: window.location.origin + window.location.pathname
         // ==========================================
         async loadAdminData() {
             try {
-                // Fetch Κατηγοριών
                 const { data: cats, error: catError } = await supabaseClient
                     .from('categories')
                     .select('id, name, display_order')
                     .order('display_order');
                 if (catError) throw catError;
 
-                // Fetch ΟΛΩΝ των Ψαριών
                 const { data: fishes, error: fishError } = await supabaseClient
                     .from('fish')
                     .select('id, name, display_order, active, category_id')
                     .order('display_order');
                 if (fishError) throw fishError;
 
-                // Εμπλουτισμός Categories με τον αριθμό των ψαριών τους
                 this.adminCategories = cats.map(c => ({
                     ...c,
                     fish_count: fishes.filter(f => f.category_id === c.id).length
                 }));
 
-                // Ομαδοποίηση Ψαριών ανά Κατηγορία για το UI της διαχείρισης
                 this.adminFishGrouped = cats.map(c => ({
                     categoryId: c.id,
                     categoryName: c.name,
@@ -320,7 +350,7 @@ emailRedirectTo: window.location.origin + window.location.pathname
                 
                 this.addToast("Η κατηγορία αποθηκεύτηκε.", "success");
                 this.closeModal();
-                this.loadAdminData(); // Refresh list
+                this.loadAdminData(); 
             } catch (error) {
                 console.error(error);
                 this.addToast("Αποτυχία αποθήκευσης κατηγορίας.", "error");
@@ -406,7 +436,6 @@ emailRedirectTo: window.location.origin + window.location.pathname
         // MODALS MANAGEMENT
         // ==========================================
         openModal(modalName) {
-            // Αρχικοποίηση φορμών για νέες εγγραφές
             if (modalName === 'categoryModal' && !this.categoryForm.id) {
                 const nextOrder = this.adminCategories.length > 0 
                     ? Math.max(...this.adminCategories.map(c => c.display_order)) + 1 
@@ -415,7 +444,7 @@ emailRedirectTo: window.location.origin + window.location.pathname
             }
             
             if (modalName === 'fishModal' && !this.fishForm.id) {
-                const nextOrder = 1; // Θα μπορούσε να υπολογιστεί ανά κατηγορία
+                const nextOrder = 1; 
                 this.fishForm = { id: null, name: '', category_id: '', display_order: nextOrder, active: true };
             }
             
@@ -424,7 +453,6 @@ emailRedirectTo: window.location.origin + window.location.pathname
 
         closeModal() {
             this.activeModal = null;
-            // Καθαρισμός state μετά το transition (300ms) για ομαλότητα στο UI
             setTimeout(() => {
                 this.errorMessage = '';
                 this.categoryForm = { id: null, name: '', display_order: 1 };
@@ -450,12 +478,10 @@ emailRedirectTo: window.location.origin + window.location.pathname
             const id = Date.now();
             this.toasts.push({ id, message, type, visible: true });
             
-            // Auto-hide
             setTimeout(() => {
                 const toast = this.toasts.find(t => t.id === id);
                 if (toast) {
                     toast.visible = false;
-                    // Αφαίρεση από το DOM μετά το leave transition
                     setTimeout(() => {
                         this.toasts = this.toasts.filter(t => t.id !== id);
                     }, 300);
@@ -471,7 +497,6 @@ emailRedirectTo: window.location.origin + window.location.pathname
 
         setupTheme() {
             this.applyTheme();
-            // Παρακολούθηση αλλαγών στο σύστημα
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
                 if (!('theme' in localStorage)) {
                     this.isDarkMode = e.matches;
