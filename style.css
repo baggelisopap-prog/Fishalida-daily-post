@@ -6,6 +6,7 @@
 /* Custom Scrollbar για Webkit browsers */
 ::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -26,7 +27,43 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Κρύβουμε στοιχεία πριν φορτώσει το Alpine (fallback αν αποτύχει inline style) */
+/* Κρύβουμε στοιχεία πριν φορτώσει το Alpine */
 [x-cloak] {
     display: none !important;
+}
+
+/* Splash Screen Animations */
+@keyframes splashLogo {
+    0% { 
+        transform: scale(0.5); 
+        opacity: 0; 
+    }
+    80% { 
+        transform: scale(1.1); 
+        opacity: 1; 
+    }
+    100% { 
+        transform: scale(1); 
+        opacity: 1; 
+    }
+}
+
+@keyframes splashText {
+    0% { 
+        opacity: 0; 
+        transform: translateY(15px); 
+    }
+    100% { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
+
+.splash-logo-anim {
+    animation: splashLogo 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.splash-text-anim {
+    opacity: 0; /* Αρχική κατάσταση πριν το animation */
+    animation: splashText 0.6s ease-out 0.5s forwards;
 }
