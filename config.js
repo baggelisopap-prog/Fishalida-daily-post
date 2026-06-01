@@ -7,6 +7,6 @@
  */
 window.APP_CONFIG = {
   SUPABASE_URL: 'https://ygzdlbnaqtngwsnjcodo.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnemRsYm5hcXRuZ3dzbmpjb2vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NjcxNDgsImV4cCI6MjA5NTQ0MzE0OH0.7mFPfCabi7TnpyzhUfHOXWyXGfEpnw-iCA2a3SZ4Pqk',
+  SUPABASE_ANON_KEY: 'sb_publishable_-rps5ej20k4Kff5JIicfpA_xZGQ9KRt',
   N8N_WEBHOOK_GENERATE_POST: 'http://localhost:5678/webhook-test/generate-post'
 };
