@@ -34,6 +34,10 @@ window.fishalidaApp = function() {
         categoryForm: { id: null, name: '', display_order: 1 },
         fishForm: { id: null, name: '', category_id: '', display_order: 1, active: true },
         confirmDeleteData: null, 
+        
+        // n8n Preview State
+        previewContent: '',
+        isGeneratingPreview: false,
 
         // ==========================================
         // INITIALIZATION
@@ -113,6 +117,42 @@ window.fishalidaApp = function() {
             } catch (error) {
                 console.error("Σφάλμα κατά την αλλαγή σειράς:", error);
                 this.addToast("Σφάλμα κατά την αποθήκευση της σειράς", "error");
+            }
+        },
+
+        // ==========================================
+        // n8n PREVIEW FUNCTIONALITY
+        // ==========================================
+        async generatePreview() {
+            if (!window.APP_CONFIG.N8N_WEBHOOK_GENERATE_POST || window.APP_CONFIG.N8N_WEBHOOK_GENERATE_POST.includes('YOUR_N8N_WEBHOOK_URL_HERE')) {
+                this.addToast("Το Webhook URL δεν έχει ρυθμιστεί στο config.js.", "error");
+                return;
+            }
+
+            this.isGeneratingPreview = true;
+            this.previewContent = '';
+            
+            try {
+                const response = await fetch(window.APP_CONFIG.N8N_WEBHOOK_GENERATE_POST, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ type: 'daily' })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                this.previewContent = data.content || "Δεν επιστράφηκε περιεχόμενο από το n8n.";
+                this.activeModal = 'previewModal';
+            } catch (error) {
+                console.error("Σφάλμα κατά τη δημιουργία preview:", error);
+                this.addToast("Αποτυχία επικοινωνίας με το n8n.", "error");
+            } finally {
+                this.isGeneratingPreview = false;
             }
         },
 
@@ -461,6 +501,8 @@ window.fishalidaApp = function() {
                 this.categoryForm = { id: null, name: '', display_order: 1 };
                 this.fishForm = { id: null, name: '', category_id: '', display_order: 1, active: true };
                 this.confirmDeleteData = null;
+                // Καθαρισμός του preview text για να μη φαίνεται στο επόμενο άνοιγμα πριν φορτώσει
+                this.previewContent = '';
             }, 300);
         },
 
