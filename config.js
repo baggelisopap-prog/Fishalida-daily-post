@@ -8,5 +8,5 @@
 window.APP_CONFIG = {
   SUPABASE_URL: 'https://ygzdlbnaqtngwsnjcodo.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_-rps5ej20k4Kff5JIicfpA_xZGQ9KRt',
-  N8N_WEBHOOK_GENERATE_POST: 'http://localhost:5678/webhook/generate-post'
+ N8N_WEBHOOK_GENERATE_POST: 'https://n8n.fishalida.gr/webhook/generate-post'
 };
