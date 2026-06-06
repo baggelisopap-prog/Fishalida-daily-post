@@ -1,6 +1,6 @@
 /**
  * Fishαλίδα Manager - Core Application Logic
- * Συνδέει το UI (Alpine.js) με το Backend (Supabase)
+ * Συνδέει το UI (Alpine.js) με το Backend (Supabase + n8n)
  */
 
 const supabaseUrl = window.APP_CONFIG.SUPABASE_URL;
@@ -38,6 +38,9 @@ window.fishalidaApp = function() {
         // n8n Preview State
         previewContent: '',
         isGeneratingPreview: false,
+        
+        // n8n Publish State
+        isPublishing: false,
 
         // ==========================================
         // INITIALIZATION
@@ -46,7 +49,6 @@ window.fishalidaApp = function() {
             this.setupTheme();
             this.registerServiceWorker();
             
-            // Κλείσιμο Splash Screen μετά από 1.5 δευτερόλεπτο
             setTimeout(() => {
                 this.splashVisible = false;
             }, 1500);
@@ -85,7 +87,6 @@ window.fishalidaApp = function() {
                 onEnd: async (evt) => {
                     if (evt.oldIndex === evt.newIndex) return;
                     
-                    // Ανάκτηση της νέας σειράς από το DOM (χρησιμοποιώντας το data-id)
                     const itemEls = Array.from(el.children);
                     const newOrderIds = itemEls.map(element => element.getAttribute('data-id'));
                     
@@ -99,12 +100,10 @@ window.fishalidaApp = function() {
                 const category = this.dailyData.find(c => c.id === categoryId);
                 if (!category) return;
 
-                // Ενημέρωση του memory array βάσει της νέας σειράς
                 category.fish.sort((a, b) => {
                     return newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id);
                 });
 
-                // Bulk update στο Supabase
                 const promises = category.fish.map((fish, index) => {
                     fish.display_order = index + 1;
                     return supabaseClient.from('fish')
@@ -124,7 +123,7 @@ window.fishalidaApp = function() {
         // n8n PREVIEW FUNCTIONALITY
         // ==========================================
         async generatePreview() {
-            if (!window.APP_CONFIG.N8N_WEBHOOK_GENERATE_POST || window.APP_CONFIG.N8N_WEBHOOK_GENERATE_POST.includes('YOUR_N8N_WEBHOOK_URL_HERE')) {
+            if (!window.APP_CONFIG.N8N_WEBHOOK_GENERATE_POST || window.APP_CONFIG.N8N_WEBHOOK_GENERATE_POST.includes('YOUR_')) {
                 this.addToast("Το Webhook URL δεν έχει ρυθμιστεί στο config.js.", "error");
                 return;
             }
@@ -157,6 +156,63 @@ window.fishalidaApp = function() {
         },
 
         // ==========================================
+        // n8n PUBLISH FUNCTIONALITY
+        // ==========================================
+        confirmPublish() {
+            if (!this.previewContent) {
+                this.addToast("Πάτησε πρώτα 'Δες Preview'", "error");
+                return;
+            }
+            this.activeModal = 'publishConfirmModal';
+        },
+
+        async publishPost() {
+            if (!window.APP_CONFIG.N8N_WEBHOOK_PUBLISH_POST || window.APP_CONFIG.N8N_WEBHOOK_PUBLISH_POST.includes('YOUR_')) {
+                this.addToast("Το Publish Webhook URL δεν έχει ρυθμιστεί στο config.js.", "error");
+                return;
+            }
+
+            if (!this.previewContent) {
+                this.addToast("Δεν υπάρχει περιεχόμενο για δημοσίευση.", "error");
+                return;
+            }
+
+            this.isPublishing = true;
+            
+            try {
+                const response = await fetch(window.APP_CONFIG.N8N_WEBHOOK_PUBLISH_POST, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        type: 'daily',
+                        content: this.previewContent 
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.addToast("Το post δημοσιεύτηκε στο Facebook! 🎉", "success");
+                    this.closeModal();
+                    this.previewContent = '';
+                } else {
+                    throw new Error(data.message || "Αποτυχία δημοσίευσης");
+                }
+            } catch (error) {
+                console.error("Σφάλμα κατά τη δημοσίευση:", error);
+                this.addToast("Αποτυχία δημοσίευσης. Δοκίμασε ξανά.", "error");
+            } finally {
+                this.isPublishing = false;
+            }
+        },
+
+        // ==========================================
         // AUTHENTICATION
         // ==========================================
         async handleLogin() {
@@ -166,7 +222,7 @@ window.fishalidaApp = function() {
             const { error } = await supabaseClient.auth.signInWithOtp({ 
                 email: this.loginEmail,
                 options: { 
-                    shouldCreateUser: false, // Οι χρήστες είναι pre-created από admin
+                    shouldCreateUser: false,
                     emailRedirectTo: window.location.origin + window.location.pathname
                 }
             });
@@ -501,8 +557,6 @@ window.fishalidaApp = function() {
                 this.categoryForm = { id: null, name: '', display_order: 1 };
                 this.fishForm = { id: null, name: '', category_id: '', display_order: 1, active: true };
                 this.confirmDeleteData = null;
-                // Καθαρισμός του preview text για να μη φαίνεται στο επόμενο άνοιγμα πριν φορτώσει
-                this.previewContent = '';
             }, 300);
         },
 
