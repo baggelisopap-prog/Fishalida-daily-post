@@ -233,7 +233,6 @@
                         </div>
                     </div>
                 </template>
-                <div class="text-center text-sm text-gray-500 mt-4">* Η δημοσίευση θα είναι διαθέσιμη μετά τη σύνδεση με το n8n.</div>
             </div>
 
             <div x-show="currentTab === 'promo'" class="space-y-6">
@@ -330,15 +329,22 @@
         
         <div x-show="currentTab === 'daily'" class="fixed bottom-0 left-0 w-full bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.1)] p-4 z-20 transition-all">
             <div class="max-w-5xl mx-auto grid grid-cols-2 gap-3">
-                <button @click="generatePreview()" :disabled="isGeneratingPreview" class="h-14 bg-white dark:bg-gray-800 border-2 border-brand-blue text-brand-blue dark:text-blue-400 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50">
+                <button @click="generatePreview()" :disabled="isGeneratingPreview || isPublishing" class="h-14 bg-white dark:bg-gray-800 border-2 border-brand-blue text-brand-blue dark:text-blue-400 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50">
                     <span x-show="!isGeneratingPreview" class="text-xl">👁️</span>
                     <div x-show="isGeneratingPreview" class="animate-spin rounded-full h-5 w-5 border-2 border-brand-blue border-t-transparent"></div>
                     <span class="hidden sm:inline" x-text="isGeneratingPreview ? 'Φόρτωση...' : 'Δες Preview'"></span>
                     <span class="sm:hidden" x-text="isGeneratingPreview ? 'Φόρτωση' : 'Preview'"></span>
                 </button>
-                <button disabled class="h-14 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-bold rounded-xl flex items-center justify-center gap-2 cursor-not-allowed">
-                    <span class="text-xl">📘</span> <span class="hidden sm:inline">Δημοσίευση</span>
+                <button @click="confirmPublish()" :disabled="isPublishing || isGeneratingPreview || !previewContent" 
+                        class="h-14 bg-brand-blue hover:bg-blue-800 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed">
+                    <span x-show="!isPublishing" class="text-xl">📘</span>
+                    <div x-show="isPublishing" class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                    <span class="hidden sm:inline" x-text="isPublishing ? 'Δημοσίευση...' : 'Δημοσίευση'"></span>
+                    <span class="sm:hidden" x-text="isPublishing ? '...' : 'Post'"></span>
                 </button>
+            </div>
+            <div x-show="!previewContent && !isGeneratingPreview" class="text-center text-xs text-gray-500 mt-2">
+                * Πάτησε πρώτα "Δες Preview" για να ενεργοποιηθεί η Δημοσίευση
             </div>
         </div>
 
@@ -361,9 +367,22 @@
 
             <div class="flex gap-3 mt-6 shrink-0">
                 <button @click="closeModal()" class="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Κλείσιμο</button>
-                <button disabled class="flex-1 py-3 bg-brand-blue text-white rounded-lg font-bold opacity-50 cursor-not-allowed relative group">
-                    <span class="text-sm">📘 Δημοσίευση</span>
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg">Σύντομα διαθέσιμο</div>
+                <button @click="confirmPublish()" :disabled="isPublishing" class="flex-1 py-3 bg-brand-blue hover:bg-blue-800 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                    <span x-show="!isPublishing">📘 Δημοσίευση</span>
+                    <div x-show="isPublishing" class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                </button>
+            </div>
+        </div>
+
+        <div x-show="activeModal === 'publishConfirmModal'" @click.outside="closeModal()" class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full text-center">
+            <div class="text-4xl mb-4">📘</div>
+            <h3 class="text-xl font-bold mb-2">Επιβεβαίωση Δημοσίευσης</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Είσαι σίγουρος ότι θέλεις να δημοσιεύσεις αυτό το post στο Facebook της Fishαλίδας;</p>
+            <div class="flex gap-3">
+                <button @click="closeModal()" :disabled="isPublishing" class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50">Ακύρωση</button>
+                <button @click="publishPost()" :disabled="isPublishing" class="flex-1 py-2 bg-brand-blue text-white rounded-lg font-bold hover:bg-blue-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                    <span x-show="!isPublishing">Ναι, δημοσίευση</span>
+                    <div x-show="isPublishing" class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                 </button>
             </div>
         </div>
