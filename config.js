@@ -7,10 +7,10 @@
  */
 window.APP_CONFIG = {
   // Supabase credentials
-  SUPABASE_URL: 'YOUR_SUPABASE_URL_HERE',
-  SUPABASE_ANON_KEY: 'YOUR_ANON_KEY_HERE',
+  SUPABASE_URL: 'https://ygzdlbnaqtngwsnjcodo.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_-rps5ej20k4Kff5JIicfpA_xZGQ9KRt',
   
   // n8n Webhooks
-  N8N_WEBHOOK_GENERATE_POST: 'YOUR_N8N_GENERATE_URL_HERE',
-  N8N_WEBHOOK_PUBLISH_POST: 'YOUR_N8N_PUBLISH_URL_HERE'
+  N8N_WEBHOOK_GENERATE_POST: 'https://n8n.fishalida.gr/webhook/generate-post',
+  N8N_WEBHOOK_PUBLISH_POST: 'https://n8n.fishalida.gr/webhook/publish-post'
 };
