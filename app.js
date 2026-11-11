@@ -190,16 +190,29 @@ window.fishalidaApp = function() {
             this.isPublishing = true;
             
             try {
+                // Το n8n ελέγχει με αυτό το token ότι ο χρήστης είναι συνδεδεμένος admin/staff
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) {
+                    this.addToast("Η σύνδεση έληξε. Κάνε ξανά login.", "error");
+                    return;
+                }
+
                 const response = await fetch(window.APP_CONFIG.N8N_WEBHOOK_PUBLISH_POST, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
                     },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         type: 'daily',
-                        content: this.previewContent 
+                        content: this.previewContent
                     })
                 });
+
+                if (response.status === 401 || response.status === 403) {
+                    this.addToast("Δεν έχεις δικαίωμα δημοσίευσης. Κάνε ξανά login.", "error");
+                    return;
+                }
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
