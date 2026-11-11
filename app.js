@@ -128,6 +128,12 @@ window.fishalidaApp = function() {
                 return;
             }
 
+            const hasAvailableFish = this.dailyData.some(cat => cat.fish.some(f => f.available));
+            if (!hasAvailableFish) {
+                this.addToast("Χρειάζεται τουλάχιστον ένα διαθέσιμο ψάρι για να γίνει post.", "error");
+                return;
+            }
+
             this.isGeneratingPreview = true;
             this.previewContent = '';
             
@@ -145,7 +151,11 @@ window.fishalidaApp = function() {
                 }
 
                 const data = await response.json();
-                this.previewContent = data.content || "Δεν επιστράφηκε περιεχόμενο από το n8n.";
+                if (data.error || !data.content) {
+                    this.addToast(data.error || "Δεν επιστράφηκε περιεχόμενο από το n8n.", "error");
+                    return;
+                }
+                this.previewContent = data.content;
                 this.activeModal = 'previewModal';
             } catch (error) {
                 console.error("Σφάλμα κατά τη δημιουργία preview:", error);
